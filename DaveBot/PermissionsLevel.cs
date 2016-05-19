@@ -8,7 +8,8 @@ namespace DaveBot
 {
     public enum PermissionLevel : byte
     {
-        User = 0,
+        Jordan = 0,
+        User,
         ChannelModerator, //Manage Messages (Channel)
         ChannelAdmin, //Manage Permissions (Channel)
         ServerModerator, //Manage Messages, Kick, Ban (Server)

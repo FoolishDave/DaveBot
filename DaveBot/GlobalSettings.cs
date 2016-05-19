@@ -27,10 +27,8 @@ namespace DaveBot
         //Discord
         public class DiscordSettings
         {
-            [JsonProperty("username")]
-            public string Email;
-            [JsonProperty("password")]
-            public string Password;
+            [JsonProperty("token")]
+            public static string Token;
         }
         [JsonProperty("discord")]
         private DiscordSettings _discord = new DiscordSettings();

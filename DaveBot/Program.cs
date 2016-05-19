@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -11,44 +12,27 @@ namespace DaveBot
 {
     static class Program
     {
-        public static DaveBot dbot;
-        static Task botTask;
-        static CancellationTokenSource cancelTokenSource;
-        static Window mainWindow;
+        public static DapperBot dbot;
         static void Main(string[] args)
         {
-            mainWindow = new Window();
-            Application.EnableVisualStyles();
-            Application.Run(mainWindow);
-        }
-
-        public static void startBot(String token, Window window)
-        {
-            cancelTokenSource = new CancellationTokenSource();
-            CancellationToken cancelToken = cancelTokenSource.Token;
-            botTask = new Task(() =>
+            if (Type.GetType("Mono.Runtime") == null)
             {
-                dbot = new DaveBot(token,window);
-            },cancelToken);
-            botTask.Start();
-            
+                AllocConsole();
+            } else
+            {
+                Console.SetOut(new StreamWriter(Console.OpenStandardOutput()));
+                Console.SetError(new StreamWriter(Console.OpenStandardError()));
+                Console.SetIn(new StreamReader(Console.OpenStandardInput()));
+            }
+
+            dbot = new DapperBot();
         }
 
-        public static void connected()
-        {
-            mainWindow.updateStatus("Connected", Color.Green);
-        }
 
-        public static async 
-        Task
-disconnect(string reason)
-        {
-            Console.WriteLine("Disconnect Called");
-            if (dbot != null)
-                await dbot.dc();
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool AllocConsole();
 
-
-            mainWindow.updateStatus(reason, Color.Red);
-        }
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool AttachConsole(int pid);
     }
 }

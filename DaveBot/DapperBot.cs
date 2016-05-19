@@ -1,65 +1,30 @@
-﻿using Discord;
+﻿using DaveBot.Modules.Colors;
+using DaveBot.Modules.General;
+using DaveBot.Modules.Voice;
+using DaveBot.Services;
+using Discord;
 using Discord.Audio;
 using Discord.Commands;
 using Discord.Commands.Permissions.Levels;
 using Discord.Modules;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using DaveBot.Modules.Colors;
-using DaveBot.Modules.General;
-using DaveBot.Modules.Voice;
-using DaveBot.Services;
 
 namespace DaveBot
 {
-    public class DaveBot
+    class DapperBot
     {
-        private DiscordClient _client;
-        private const string name = "FuckBoiBot";
-        private const string url = "";
-        private ulong focusedChannel;
-        private Window window;
+        public static DiscordClient _client;
+        private const string name = "Dapper Bot";
+        private const string url = "http://davidgrougan.com/dapper.html";
+        private static long lastDenial = 0;
 
-        public DaveBot(string token, Window window)
+        public DapperBot()
         {
-            this.window = window;
-            Start(token);
+            Start();
         }
 
-        public void setFocusedChannel(ulong channelId)
-        {
-            focusedChannel = channelId;
-            window.memberList.Items.Clear();
-            Server activeServer = _client.GetServer(focusedChannel);
-            foreach (User u in activeServer.Users)
-            {
-                window.memberList.Items.Add(u.Name);
-                if (u.Status == UserStatus.Offline)
-                {
-                    window.memberList.Items[window.memberList.Items.Count-1].ForeColor = System.Drawing.Color.LightGray;
-                }
-            }
-        }
-
-        public string idToName(ulong channelId)
-        {
-            return _client.GetServer(channelId).Name;
-        }
-
-        public async 
-        Task
-dc()
-        {
-            if (_client != null && _client.State == ConnectionState.Connected)
-            {
-                await _client.Disconnect();
-            }
-        }
-
-        private void Start(string token)
+        private void Start()
         {
             GlobalSettings.Load();
 
@@ -76,13 +41,13 @@ dc()
             {
                 x.AllowMentionPrefix = true;
                 x.HelpMode = HelpMode.Public;
+                x.CustomPrefixHandler = PrefixHandler;
                 x.ExecuteHandler = OnCommandExecuted;
                 x.ErrorHandler = OnCommandError;
                 x.PrefixChar = '~';
             }).UsingModules().UsingAudio(x =>
             {
                 x.Mode = AudioMode.Both;
-                x.EnableMultiserver = false;
                 x.EnableEncryption = false;
                 x.Bitrate = AudioServiceConfig.MaxBitrate;
                 x.BufferLength = 10000;
@@ -91,50 +56,38 @@ dc()
             _client.AddService<SettingsService>();
             _client.AddService<HttpService>();
 
+            _client.Log.Debug("Installing Voice Module", null);
             _client.AddModule<VoiceModule>("Voice", ModuleFilter.None);
+            _client.Log.Debug("Installing General Module", null);
             _client.AddModule<GeneralModule>("General", ModuleFilter.None);
+            _client.Log.Debug("Installing Color Module", null);
             _client.AddModule<ColorModule>("Color", ModuleFilter.None);
-            
+
+
 
             _client.ExecuteAndWait(async () =>
             {
-                bool connecting = true;
-                while (connecting)
+                try
                 {
-                    try
-                    {
-                        await _client.Connect(token);
-                        _client.SetGame("Discord.Net");
-                        Program.connected();
-                        connecting = false;
-
-                        
-
-                        window.giveBot(this);
-
-                        if (window.serverIdList.Items.Count > 0)
-                        {
-                            setFocusedChannel((ulong)window.serverIdList.SelectedItem);
-                        }
-
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _client.Log.Error($"Login Failed", ex);
-                        await Program.disconnect("Login Failed: " + ex.Message);
-                        connecting = false;
-                        break;
-                    }
+                    await _client.Connect(GlobalSettings.DiscordSettings.Token);
+                    _client.SetGame("Botting");
+                }
+                catch (Exception ex)
+                {
+                    _client.Log.Error($"Loggin failed.", ex);
                 }
             });
-
-           
-
-            
         }
 
+        private int PrefixHandler(Message arg)
+        {
+            if (arg.Text.StartsWith("FUCKBOI"))
+            {
+                return 8;
+            }
 
+            return -1;
+        }
 
         private void OnCommandError(object sender, CommandErrorEventArgs e)
         {
@@ -162,13 +115,14 @@ dc()
             }
             if (msg != null)
             {
-                //_client.ReplyError(e, msg);
+                e.Channel.SendMessage("Command error: " + msg);
                 _client.Log.Error("Command", msg);
             }
         }
+
         private void OnCommandExecuted(object sender, CommandEventArgs e)
         {
-            _client.Log.Info("Command", $"{e.Command.Text} ({e.User.Name})");
+            _client.Log.Info("Command", $"{e.Command.Text} {string.Join(" ",e.Args)} ({e.User.Name})");
         }
 
         private void OnLogMessage(object sender, LogMessageEventArgs e)
@@ -237,6 +191,40 @@ dc()
 
         private int PermissionResolver(User user, Channel channel)
         {
+            if (user.Name.ToLowerInvariant().Contains("jtklaus"))
+            {
+                if (!System.IO.File.Exists(@"..\data\JordanTimeout.txt"))
+                    System.IO.File.WriteAllText(@"..\data\JordanTimeout.txt", "0");
+
+                string timeout = System.IO.File.ReadAllText(@"..\data\JordanTimeout.txt");
+                var curTime = System.DateTime.Now.Ticks / TimeSpan.TicksPerMinute;
+                long t;
+                long timeDif = 0;
+                if (long.TryParse(timeout, out t))
+                {
+                    timeDif = curTime - t;
+                }
+
+                if (timeDif < 30)
+                {
+                    if (curTime - lastDenial > 1)
+                    {
+                        channel.SendMessage(":x: You have used up all of your account commands. Please try again in " + (30 - timeDif) + " minutes. :x:" + "\n" +
+                            "If you would like to purchase more commands, visit http://davidgrougan.com/BotTransactions.html");
+                        lastDenial = curTime;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Jordan tried to spam");
+                    }
+                    return (int)PermissionLevel.Jordan;
+                }
+                else
+                {
+                    System.IO.File.WriteAllText(@"..\data\JordanTimeout.txt", curTime.ToString());
+                }
+            }
+
             if (user.Id == GlobalSettings.Users.DevId)
                 return (int)PermissionLevel.BotOwner;
             if (user.Server != null)
@@ -258,10 +246,5 @@ dc()
             }
             return (int)PermissionLevel.User;
         }
-
-
-
-
     }
 }
-

@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
+using System.IO;
 
 namespace DaveBot.Modules.Colors
 {
@@ -28,6 +28,7 @@ namespace DaveBot.Modules.Colors
         }
         private readonly List<ColorDefinition> _colors;
         private readonly Dictionary<string, ColorDefinition> _colorMap;
+        private static Dictionary<string, ColorDefinition> _statColorMap;
         private ModuleManager _manager;
         private DiscordClient _client;
 
@@ -52,7 +53,11 @@ namespace DaveBot.Modules.Colors
                 new ColorDefinition("DarkPurple", Color.DarkPurple),
                 new ColorDefinition("DarkRed", Color.DarkRed),
             };
+
+            LoadColors();
+
             _colorMap = _colors.ToDictionary(x => x.Id);
+            _statColorMap = _colorMap;
         }
 
         void IModule.Install(ModuleManager manager)
@@ -64,6 +69,7 @@ namespace DaveBot.Modules.Colors
              {
                  group.CreateCommand("list")
                         .Description("Displays all of the pretty colors available.")
+                        .MinPermissions((int)PermissionLevel.User)
                         .Do(async e =>
                         {
                             string text = $"{Format.Bold("Available Colors:")}\n" + string.Join(", ", _colors.Select(x => '`' + x.Name + '`'));
@@ -104,16 +110,22 @@ namespace DaveBot.Modules.Colors
                         .Parameter("g")
                         .Parameter("b")
                         .Description("Allows for customizable colors.")
+                        .MinPermissions((int)PermissionLevel.User)
                         .Do(e =>
                         {
-                            
                                 Color custom = new Color(float.Parse(e.Args[1])/255f, float.Parse(e.Args[2])/255f, float.Parse(e.Args[3])/255f);
 
                                 ColorDefinition color = new ColorDefinition(e.Args[0], custom);
 
+                            string[] saveColor = { e.GetArg("name"), e.Args[1], e.Args[2], e.Args[3] };
+                            if (!System.IO.File.Exists(@"..\data\CustomColors.txt"))
+                                File.Create(@"..\data\CustomColors.txt");
+
+                            System.IO.File.AppendAllLines(@"..\data\CustomColors.txt",saveColor);
+
+
                                 _colors.Add(color);
-                            _colorMap.Add(e.Args[0].ToLowerInvariant(), color);
-                            
+                                _colorMap.Add(e.Args[0], color);  
                         });
 
                  group.CreateCommand("clear")
@@ -129,33 +141,108 @@ namespace DaveBot.Modules.Colors
              });
         }
 
-        private IEnumerable<Role> GetOtherRoles(User user)
-            => user.Roles.Where(x => !_colorMap.ContainsKey(x.Name.ToLowerInvariant()));
+        public static IEnumerable<Role> GetOtherRoles(User user)
+            => user.Roles.Where(x => !_statColorMap.ContainsKey(x.Name.ToLowerInvariant()));
+
+
+        public static void AddColor(string name, float r, float g, float b)
+        {
+            Color custom = new Color(r / 255f, g / 255f, b / 255f);
+
+            ColorDefinition color = new ColorDefinition(name, custom);
+
+            string[] saveColor = { "\n"+name, ""+r, ""+g, ""+b };
+            if (!System.IO.File.Exists(@"..\data\CustomColors.txt"))
+                File.Create(@"..\data\CustomColors.txt");
+
+            System.IO.File.AppendAllLines(@"..\data\CustomColors.txt", saveColor);
+
+            ColorDefinition customDef = new ColorDefinition(name,custom);
+            if (!_statColorMap.Keys.Contains(name.ToLowerInvariant())) 
+                _statColorMap.Add(name.ToLowerInvariant(), customDef);
+        }
+
+        public static Color GetColor(User user)
+        {
+            Role colorRole = user.Roles.Where(x => _statColorMap.ContainsKey(x.Name.ToLowerInvariant())).FirstOrDefault();
+            if (colorRole != null)
+            {
+                string colorName = colorRole.Name.ToLowerInvariant();
+                ColorDefinition colorDef;
+                _statColorMap.TryGetValue(colorName, out colorDef);
+                return colorDef.Color;
+            }
+            return Color.DarkGrey;
+        }
+
+        public static async Task SetColor(ulong c, User user, string colorName)
+        {
+            await SetColor(DapperBot._client.GetServer(c).TextChannels.FirstOrDefault(), DapperBot._client.GetServer(c), user, colorName);
+        }
 
         private async Task SetColor(CommandEventArgs e, User user, string colorName)
         {
+            await SetColor(e.Channel, e.Server, user, colorName);
+        }
+
+        public static async Task SetColor(Channel c, Server s, User user, string colorName)
+        {
             ColorDefinition color;
-            if (!_colorMap.TryGetValue(colorName.ToLowerInvariant(), out color))
+            if (!_statColorMap.TryGetValue(colorName.ToLowerInvariant(), out color))
             {
-                await e.Channel.SendMessage("Unknown color");
+                await c.SendMessage("Unknown color");
                 return;
             }
-            if (!e.Server.CurrentUser.ServerPermissions.ManageRoles)
+            if (!s.CurrentUser.ServerPermissions.ManageRoles)
             {
-                await e.Channel.SendMessage("Insufficient Permission");
+                await c.SendMessage("Insufficient Permission");
                 return;
             }
-            Role role = e.Server.Roles.Where(x => x.Name == color.Name).FirstOrDefault();
+            Role role = s.Roles.Where(x => x.Name == color.Name).FirstOrDefault();
             if (role == null)
             {
-                role = await e.Server.CreateRole(color.Name);
+                role = await s.CreateRole(color.Name);
                 await role.Edit(permissions: ServerPermissions.None, color: color.Color);
             }
             var otherRoles = GetOtherRoles(user);
             await user.Edit(roles: otherRoles.Concat(new Role[] { role }));
-            await e.Channel.SendMessage("Set users color.");
+            await c.SendMessage("Set users color.");
         }
-    }
 
-    
+        private void LoadColors()
+        {
+            if (System.IO.File.Exists(@"..\data\CustomColors.txt"))
+            {
+                try
+                {
+                    using (StreamReader sr = new StreamReader(@"..\data\CustomColors.txt"))
+                    {
+                        while (!sr.EndOfStream)
+                        {
+                            string colorName = sr.ReadLine();
+                            string r = sr.ReadLine();
+                            string g = sr.ReadLine();
+                            string b = sr.ReadLine();
+
+                            float fR = 0;
+                            float fG = 0;
+                            float fB = 0;
+                            float.TryParse(r, out fR);
+                            float.TryParse(g, out fG);
+                            float.TryParse(b, out fB);
+
+                            Color customFromFile = new Color(fR / 255f, fG / 255f, fB / 255f);
+                            if (!_colors.Any(x => x.Name.Equals(colorName)))
+                                _colors.Add(new ColorDefinition(colorName, customFromFile));
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.Write(e.Message);
+                }
+            }
+        }
+
+    }
 }

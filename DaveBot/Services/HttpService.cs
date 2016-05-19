@@ -6,13 +6,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using Discord;
 using Discord.Net;
+using System;
 
 namespace DaveBot.Services
 {
     public class HttpService : IService
     {
         private HttpClient _http;
-
         void IService.Install(DiscordClient client)
         {
             _http = new HttpClient(new HttpClientHandler
@@ -21,9 +21,12 @@ namespace DaveBot.Services
                 UseCookies = false,
                 PreAuthenticate = false //We do auth ourselves
             });
-            _http.DefaultRequestHeaders.Add("accept", "*/*");
-            _http.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate");
-            _http.DefaultRequestHeaders.Add("user-agent", client.Config.UserAgent);
+            //Console.WriteLine("Adding accept header.");
+            //_http.DefaultRequestHeaders.Add("accept", "*/*");
+            //Console.WriteLine("Adding accept-encoding header.");
+            //_http.DefaultRequestHeaders.Add("accept-encoding", "gzip,deflate");
+            //Console.WriteLine("Adding user-agent header.");
+            //_http.DefaultRequestHeaders.Add("user-agent", client.Config.UserAgent);
         }
 
         public Task<HttpContent> Send(HttpMethod method, string path, string authToken = null)
